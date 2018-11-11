@@ -1,0 +1,131 @@
+--
+title: "Activity Monitoring - Reproducible Research - Week 2 Project"
+author: "Kripa Madras Ganapathi"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+##Set working directory
+```{r, echo=TRUE}
+setwd("~/R/Reproducible research/Week2/ActivityMonitoring")
+```
+
+##Include required Libraries for various functions
+```{r, echo=TRUE}
+library(downloader)
+library(plyr)
+library(ggplot2)
+library(knitr)
+library(rmarkdown)
+library(lattice)
+```
+
+## 1. Code for reading in the dataset and/or processing the data
+##Create a data File using the object
+```{r, echo=TRUE}
+DataFile <- tempfile()
+```
+
+##Get data from the given URL
+```{r, echo=TRUE}
+  download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", DataFile)
+```
+
+##Unzip the file
+```{r, echo=TRUE}
+unzip(DataFile, "activity.csv")
+```
+
+##Read the csv file
+```{r, echo=TRUE}
+dataForWorking <- read.csv("activity.csv", colClasses = c("integer", "Date", "character"))  
+```
+
+##Separate the date with substrings for day of the week.
+```{r, echo=TRUE}
+dataForWorking$day <- factor(paste(substring(months(as.Date(dataForWorking$date)),0,3), 
+                      substring(as.Date  (dataForWorking$date), 9), sep=" ")) 
+cleanData <- na.omit(dataForWorking)
+head(cleanData)
+```
+
+##Find the total Steps using aggregate
+```{r, echo=TRUE}
+totalSteps <- aggregate(cleanData$steps, list(cleanData$date), FUN="sum")
+names(totalSteps) <- c("date","total")
+totalSteps$date <- factor(paste(substring(months(as.Date(totalSteps$date)),0,3), 
+                      substring(as.Date  (totalSteps$date), 9), sep=" ")) 
+```
+
+#2. Histogram of the total number of steps taken each day 
+```{r, echo=TRUE}
+hist(totalSteps$total, breaks=5, xlab="Steps", main = "Total Steps per Day")  
+```
+
+#3. Find the Mean & Median of Steps taken each day
+```{r, echo=TRUE}
+as.integer(mean(totalSteps$total))
+as.integer(median(totalSteps$total))
+```
+
+```{r, echo=TRUE}
+stepsActivity <- aggregate(cleanData$steps, list(as.numeric(cleanData$interval)), FUN="mean")
+names(stepsActivity) <- c("interval","mean")
+```
+
+##4. Time series plot of the average number of steps taken per interval
+```{r, echo=TRUE}
+plot(stepsActivity, type="l", xlab=" Step Interval", ylab="Number of Steps", main="Daily Activity Pattern")
+```
+##5. The 5-minute interval that, on average, contains the maximum number of steps
+```{r, echo=TRUE}
+maxInterval <- stepsActivity[which.max(stepsActivity$mean),]
+```
+
+##6. Code to describe and show a strategy for imputing missing data
+# Missing Values
+```{r, echo=TRUE}
+missingValues <- which(is.na(dataForWorking))
+length(missingValues)
+```
+
+#Replacing Missing Values
+```{r, echo=TRUE}
+stepswithReplacedValues <- dataForWorking
+for(i in 1:length(missingValues))
+{
+stepswithReplacedValues[missingValues[i], 1] <- stepsActivity[stepsActivity$interval == stepswithReplacedValues[missingValues[i],]$interval,]$mean
+}
+```
+
+```{r, echo=TRUE}
+stepsTaken <- aggregate(stepswithReplacedValues$steps, list(stepswithReplacedValues$date), FUN="sum")
+names(stepsTaken) <- c("date","total")
+```
+
+```{r, echo=TRUE}
+stepsTaken$date <- factor(paste(substring(months(as.Date(stepsTaken$date)),0,3), 
+                      substring(as.Date  (stepsTaken$date), 9), sep=" ")) 
+```
+##7. Histogram of the total number of steps taken each day after missing values are imputed
+```{r, echo=TRUE}
+hist(stepsTaken$total, names.arg=stepsTaken$date, xlab="Total Steps", ylab="Days",
+        main="Total Steps Count Per Day (Missing values removed)", col="purple")
+```
+
+```{r, echo=TRUE}
+stepswithReplacedValues$daysOfWeek <- factor(weekdays(stepswithReplacedValues$date))
+levels(stepswithReplacedValues$daysOfWeek)
+levels(stepswithReplacedValues$daysOfWeek) <- list(weekday = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"), weekend = c("Saturday", "Sunday"))
+averageSteps <- aggregate(stepswithReplacedValues$steps, list(as.numeric(stepswithReplacedValues$interval),stepswithReplacedValues$daysOfWeek),FUN = "mean")
+names(averageSteps) <- c("interval","weekDays", "avgSteps")
+```
+
+
+##8. Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+
+```{r, echo=TRUE}
+xyplot(averageSteps$avgSteps ~ averageSteps$interval | averageSteps$weekDays, layout = c(1, 2), type = "l", xlab = "Interval", ylab = "Number of steps")
